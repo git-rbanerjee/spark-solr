@@ -1,18 +1,23 @@
 package com.lucidworks.spark.example.streaming;
 
+import java.util.Arrays;
+
 import com.lucidworks.spark.SolrSupport;
 import com.lucidworks.spark.SparkApp;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.log4j.Logger;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.spark.api.java.function.Function;
+import org.apache.spark.mllib.classification.NaiveBayesModel;
+import org.apache.spark.mllib.feature.HashingTF;
 import org.apache.spark.streaming.api.java.JavaDStream;
 import org.apache.spark.streaming.api.java.JavaReceiverInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
-
 import org.apache.spark.streaming.twitter.TwitterUtils;
+
 import twitter4j.Status;
 
 /**
@@ -36,7 +41,10 @@ public class TwitterToSolrStreamProcessor extends SparkApp.StreamProcessor {
     // start receiving a stream of tweets ...
     JavaReceiverInputDStream<Status> tweets =
       TwitterUtils.createStream(jssc, null, filters);
-
+    
+    final HashingTF htf  = new HashingTF(10000);
+	final NaiveBayesModel model = NaiveBayesModel.load(jssc.sparkContext().sc(), "nb-model");
+	
     String fusionUrl = cli.getOptionValue("fusion");
     if (fusionUrl != null) {
       // just send JSON directly to Fusion
@@ -60,6 +68,27 @@ public class TwitterToSolrStreamProcessor extends SparkApp.StreamProcessor {
               doc.setField("provider_s", "twitter");
               doc.setField("author_s", status.getUser().getScreenName());
               doc.setField("type_s", status.isRetweet() ? "echo" : "post");
+              doc.setField("created_time_dt", status.getCreatedAt());
+              doc.setField("text_s", status.getText());
+              doc.setField("country_code_s", status.getPlace()==null?"00":status.getPlace().getCountryCode());
+              doc.setField("id_l", status.getId());
+              doc.setField("user_s", status.getUser().getScreenName());
+              doc.setField("is_possibly_sensitive_b", status.isPossiblySensitive());
+              doc.setField("lat_f", status.getGeoLocation()==null?0.0:status.getGeoLocation().getLatitude());
+              doc.setField("long_f", status.getGeoLocation()==null?0.0:status.getGeoLocation().getLongitude());
+              
+              String filtered  = status.getText().replaceAll("[^\\x00-\\x7F]", "").replaceAll("@\\w+", "").replaceAll("http.+ ", "")
+      				.replaceAll("\\d+", "").replaceAll("\\s+", " ");
+              if(filtered.trim().length() > 14){
+	              Double iii = model.predict(htf.transform(Arrays.asList(filtered.split(" "))));
+	              doc.setField("sentiment_d", iii);
+	              doc.setField("sentiment_s", iii.equals(0.0)?"Negative":"Positive");
+              }
+              else
+              {
+            	  doc.setField("sentiment_d", -1.0D);
+	              doc.setField("sentiment_s", "NA");
+              }
               return doc;
             }
           }

@@ -19,6 +19,7 @@ import com.lucidworks.spark.example.query.SolrQueryProcessor;
 import com.lucidworks.spark.example.query.TableScanBenchmark;
 import com.lucidworks.spark.example.streaming.DocumentFilteringStreamProcessor;
 import com.lucidworks.spark.example.streaming.TwitterToSolrStreamProcessor;
+import com.lucidworks.spark.example.streaming.YahooToSolrStreamProcessor;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.GnuParser;
@@ -31,6 +32,7 @@ import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
 import org.apache.spark.streaming.Duration;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
+
 import static org.apache.solr.client.solrj.impl.Krb5HttpClientConfigurer.LOGIN_CONFIG_PROP;
 
 /**
@@ -243,6 +245,8 @@ public class SparkApp implements Serializable {
       return new TableScanBenchmark();
     else if ("kmeans-anomaly".equals(streamProcType))
       return new KMeansAnomaly();
+    else if ("yahoo-to-solr".equals(streamProcType))
+        return new YahooToSolrStreamProcessor();
 
 
     // If you add a built-in RDDProcessor to this class, add it here to avoid
